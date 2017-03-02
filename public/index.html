@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<link rel="stylesheet" media="all" href="/application.css" />
+
+<title>Sales Visualizer</title>
+<meta charset="UTF-8" />
+
+<script src="/socket.io-1.2.0.js"></script>
+
+</head>
+<body onload="onload();">
+	<div id="head" align="center">
+		<p>
+			<font size="100">Latest order received on-line</font>
+		</p>
+	</div>
+
+	<div id="body">
+
+		<div style="width: 100px; height: 100px; padding: 8px;">
+			<input id="open" type="button" class="button_hyded" />
+		</div>
+
+		<div id="container" style="height: 480px; font-family: overpassFont; font-size: 16px; margin: 20px 20px 20px 20px; padding: 15px 32px;">
+			<div id="globeCanvas" style="display:inline-block; width: 50%; float: left;"></div>
+			<div id="top10" style="display:inline-block;width: 30%; float: right; margin: 20px 20px 20px 20px; padding: 15px 32px;">
+			  <table id="mytable" ></table>
+			</div>
+		</div>
+
+		<table data-role="table" id="logtable">
+			<thead>
+				<tr>
+					<th>Country Name</th>
+					<th>Order Amount</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td id="log"></td>
+					<td id="sales"></td>
+				</tr>
+			</tbody>
+		</table>
+
+	<script>
+		// Lets define some globals var
+		const globe_width = 480;
+		const globe_height = 480;
+		//var def_ws_uri = "ws://portal.yoox.novalocal:80/ws"; // Default web socket emitter URI
+		//var def_ws_uri = "ws://wsrand.yoox.novalocal:80"; // Default web socket emitter URI
+		var def_ws_uri = "ws://wsrand.acme.novalocal:80"; // Default web socket emitter URI
+	</script>
+	
+		<script src="//d3js.org/d3.v3.min.js"></script>
+		<script src="//d3js.org/queue.v1.min.js"></script>
+		<script src="//d3js.org/topojson.v1.min.js"></script>
+		<script src="/mbostock/raw/4090846/globe.js"></script>
+
+		<script type="text/javascript">
+		var CC;
+		function onload() { 
+		  CC = document.getElementById('manualCC');
+		}
+		function kk(){
+		  //alert(manualCC.value);
+		  transition(manualCC.value);
+		  console.log("Country is: " + countries[cc].name )
+		}
+	  </script>
+	</div>
+	<div id="section_debug">
+		<input id="hide_ws_connection" type="button" value="connection"
+			class="hyded_hyde_button"
+			onclick="toggle_visibility('ws_connection');" /> <br />
+		<div id="ws_connection" style="display: none;">
+			<input id="url" class="input" size="40" />
+			<input id="connect"
+				type="button" value="Connect" class="button" />
+			<input id="close"
+				type="button" value="Disconnect" class="button" /><br />
+			<p>
+				Status: <span id="status"></span><br />
+			</p>
+		</div>
+		<input id="hide_ws_cmd" type="button" value="debug"
+			class="hyded_hyde_button" onclick="toggle_visibility('ws_cmd');" />
+		<br />
+		<div id="ws_cmd" style="display: none;">
+			<!--    Not methods implemented on server side -->
+			<input id="text" class="input" size="40"
+				placeholder="Send a message to the websocket Server" /> <input
+				id="send" type="button" class="button" value="Send" /> <input
+				id="manualCC" type="text" class="input" size="40"
+				placeholder="Manual insert a CC to rotate the globe" /> <input
+				type="button" class="button" value="Send" OnClick="kk()" />
+			<table data-role="table" id="logtable" class="ui-responsive">
+				<thead>
+					<tr>
+						<th>Server message</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td id="messageLog"></td>
+					</tr>
+				</tbody>
+			</table>
+			>
+		</div>
+	</div>
+
+	<script type='text/javascript'>
+
+	// websocket handling script
+    "use strict";
+    // Initialize everything when the window finishes loading 
+    var countryName = "";
+    var countryColor;
+    var salesRegisterArray = [];
+    var jsonRecords = [];
+    var salesRegister = {};
+    var topX = 10; // Number of element to render into the table
+
+    window.addEventListener("load", function(event) {
+      var status = document.getElementById("status");
+      var url = document.getElementById("url");
+      var open = document.getElementById("open");
+      var close = document.getElementById("close");
+      var send = document.getElementById("send");
+      var text = document.getElementById("text");
+      var message = document.getElementById("message");
+      var socket;
+      var connectionRequest;
+
+      open.disabled = false;
+      close.disabled = true;
+      send.disabled = true;
+
+      //socket = io(def_ws_uri,{ path: '/ws/socket.io/'});
+      socket = io(def_ws_uri);
+      var buildws = function(){
+        socket.on('channelRoom', function (msg){
+          open.disabled = true;
+          close.disabled = false;
+          send.disabled = false;
+
+          status.textContent = "Connected to the websocket server";
+          //console.log("Incoming msg: " + msg);     // Display messages received from the server
+          document.getElementById("messageLog").innerHTML = msg ;
+
+          var msgJson                   = JSON.parse(msg);
+          var countryCode               = msgJson[0]["cc"];
+              countryColor              = msgJson[0]["countryColor"];
+          var saleValue                 = msgJson[0]["value"];
+              //countryName             = countries[countryCode].name;
+              msgJson[0]["countryName"] = countries[countryCode].name;
+          //console.log("Country is: " + countries[countryCode].name )
+          transition(countryCode);
+          
+          document.getElementById("sales").innerHTML = saleValue + " €";
+
+          //salesRegister = JSON.parse(salesRegister);
+          if (salesRegister[countryCode]){
+            var actualIncome = salesRegister[countryCode][0]["value"];
+            salesRegister[countryCode][0]["value"] = +actualIncome + +saleValue;
+          } else {
+            salesRegister[countryCode] = msgJson;
+          }
+          //console.log("salesRegister is: " + JSON.stringify(salesRegister));
+          elaborateSalesRegisterArray();
+
+          socket.on('disconnect', function() {
+            status.textContent = "Status: Not Connected";
+            open.disabled = false;
+            close.disabled = true;
+            send.disabled = true;
+          });
+          socket.on('error', function(event) {
+            status.textContent = "Error: " + event;
+          });
+        });
+        return socket;
+      }
+
+      function elaborateSalesRegisterArray() {
+          salesRegisterArray = [];
+          //console.log("In loop salesRegister is: " + JSON.stringify(salesRegister));
+
+          for(var k in salesRegister) {
+            //console.log("salesRegister in k.0 is: " + JSON.stringify(salesRegister[k][0]));
+            salesRegisterArray.push(salesRegister[k][0]);
+            
+            salesRegisterArray.sort(function(a, b){
+              if (parseInt(a.value) < parseInt(b.value)) {return 1;}
+              if (parseInt(a.value) > parseInt(b.value)) {return -1;}
+              return 0;
+            });          
+
+            //console.log("salesRegister: " + JSON.stringify(salesRegister));
+            //console.log("salesRegisterArray: " + JSON.stringify(salesRegisterArray));
+          }
+          //document.getElementById("json-records").innerHTML = JSON.stringify(salesRegisterArray);
+          updateTbl();
+        }
+
+      status.textContent = "Not Connected";
+      url.value = def_ws_uri;
+
+      // Create a new connection when the Connect button is clicked
+      open.addEventListener("click", function(event) {
+    	connectionRequest = 1;
+    	open.disabled = true;
+        close.disabled = false;
+        send.disabled = false;
+        socket = buildws();
+      });
+
+      // Close the connection when the Disconnect button is clicked
+      close.addEventListener("click", function(event) {
+      	connectionRequest = 0;
+    	open.enabled = true;
+        close.disabled = true;
+        send.disabled = true;
+        status.textContent = "Status: Disconnecting...";
+        socket.close();
+      });
+
+      // Send text to the server when the Send button is clicked
+      send.addEventListener("click", function(event) {
+      });
+    });
+
+
+  </script>
+	<script>
+      
+      var  tblBody = "";
+      var  tblHead = "<thead><th>Rank</th><th>Country</th><th>Tot sales</th></thead>";
+      //$("#div_table").append(tbl);
+      function updateTbl(){
+        tblBody = "";
+        // reduce the array to top element
+        salesRegisterArray = salesRegisterArray.slice(0, topX);
+        for(var i=0;i<salesRegisterArray.length;i++){
+          var td0="<td>" + (i + 1) +"</td>";
+          var td1="<td>"+salesRegisterArray[i]["countryName"]+"</td>";
+          //var td1="<td>"+salesRegisterArray[i]["cc"]+"</td>";
+          var td2="<td>"+salesRegisterArray[i]["countryColor"]+"</td>";
+          var td3="<td>"+salesRegisterArray[i]["value"]+" €</td>";
+          tblBody =  tblBody + "<tr>" + td0 + td1 + td3 + "</tr>";
+        }
+        tblBody = "<tbody>" + tblBody + "</tbody>"
+        document.getElementById("mytable").innerHTML = tblHead + tblBody;
+      }
+    </script>
+
+
+	<script type="text/javascript">
+  // Unhyde element
+    function toggle_visibility(id) {
+        var e = document.getElementById(id);
+        if(e.style.display == 'block')
+          e.style.display = 'none';
+       else
+          e.style.display = 'block';
+     }
+</script>
+				</div>
+				</div>
+</body>
+</html>
